@@ -119,7 +119,7 @@ for (id in DAL_grouped_df_last_10games$PLAYER_ID) {
     df_name <- paste("DAL_df_", id, sep="")
     assign(df_name, model_df)
     model_name <- paste("", id, sep="")
-    assign(model_name, model) # new line to assign the model with player name
+    assign(model_name, model)
   }
   else {
     NULL
@@ -164,7 +164,7 @@ write.csv(prediction_df, file = "DAL_DALVSATL_GAMEID22201167.csv", row.names = F
 
 ################################################### CHICAGO #############################################
 
-for (id in CHI_grouped_df_last_10games$PLAYER_ID) { ### CHange this to target city
+for (id in CHI_grouped_df_last_10games$PLAYER_ID) { 
   if (any(id %in% df$PLAYER_ID)) {
     df_filtered <- df %>% filter(PLAYER_ID == id)
     model <- lm(PTS ~ WHERE_PLAYED + ABBREVIATION,data = df_filtered)
@@ -173,7 +173,7 @@ for (id in CHI_grouped_df_last_10games$PLAYER_ID) { ### CHange this to target ci
     df_name <- paste("CHI_df_", id, sep="")
     assign(df_name, model_df)
     model_name <- paste("", id, sep="")
-    assign(model_name, model) # new line to assign the model with player name
+    assign(model_name, model) 
   }
   else {
     NULL
@@ -192,11 +192,11 @@ prediction_df <- data.frame(TEAM_ID = numeric(),
                             PTS_pred = numeric(),
                             stringsAsFactors = FALSE)
 
-for (id in unique(CHI_grouped_df_last_10games$PLAYER_ID)) { ###CHANGE 
+for (id in unique(CHI_grouped_df_last_10games$PLAYER_ID)) { 
   model_name <- paste0("", id)
   model <- get(model_name)
   
-  player_data <- prediction_CHI_grouped_df_last_10games %>% ###CHANGE 
+  player_data <- prediction_CHI_grouped_df_last_10games %>% 
     filter(PLAYER_ID == id)
   
   if (nrow(player_data) > 0) {
@@ -234,10 +234,10 @@ for (id in MEM_grouped_df_last_10games$PLAYER_ID) {
   } 
 } 
 
-prediction_MEM_grouped_df_last_10games <- na.omit(MEM_grouped_df_last_10games) #CHANGE TO TARGET CITY
+prediction_MEM_grouped_df_last_10games <- na.omit(MEM_grouped_df_last_10games)
 prediction_MEM_grouped_df_last_10games <- select(prediction_MEM_grouped_df_last_10games, -PTS)
-prediction_MEM_grouped_df_last_10games <- mutate(prediction_MEM_grouped_df_last_10games, ABBREVIATION = "CHI") #CHANGE TO OPPOSING TEAM
-prediction_MEM_grouped_df_last_10games <- mutate(prediction_MEM_grouped_df_last_10games, WHERE_PLAYED = "AWAY_GAME") #CHANGE TO HOME OR AWAY
+prediction_MEM_grouped_df_last_10games <- mutate(prediction_MEM_grouped_df_last_10games, ABBREVIATION = "CHI") 
+prediction_MEM_grouped_df_last_10games <- mutate(prediction_MEM_grouped_df_last_10games, WHERE_PLAYED = "AWAY_GAME")
 
 prediction_df <- data.frame(TEAM_ID = numeric(),
                             PLAYER_ID = numeric(),
@@ -540,10 +540,10 @@ for (id in BKN_grouped_df_last_10games$PLAYER_ID) {
   } 
 } 
 
-prediction_BKN_grouped_df_last_10games <- na.omit(BKN_grouped_df_last_10games) #UTANGE TO TARGET CITY
+prediction_BKN_grouped_df_last_10games <- na.omit(BKN_grouped_df_last_10games) 
 prediction_BKN_grouped_df_last_10games <- select(prediction_BKN_grouped_df_last_10games, -PTS)
-prediction_BKN_grouped_df_last_10games <- mutate(prediction_BKN_grouped_df_last_10games, ABBREVIATION = "UTA") #UTANGE TO OPPOSING TEAM
-prediction_BKN_grouped_df_last_10games <- mutate(prediction_BKN_grouped_df_last_10games, WHERE_PLAYED = "HOME_GAME") #CHANGE TO HOME OR AWAY
+prediction_BKN_grouped_df_last_10games <- mutate(prediction_BKN_grouped_df_last_10games, ABBREVIATION = "UTA") 
+prediction_BKN_grouped_df_last_10games <- mutate(prediction_BKN_grouped_df_last_10games, WHERE_PLAYED = "HOME_GAME") 
 
 prediction_df <- data.frame(TEAM_ID = numeric(),
                             PLAYER_ID = numeric(),
@@ -590,10 +590,10 @@ for (id in NYK_grouped_df_last_10games$PLAYER_ID) {
   } 
 } 
 
-prediction_NYK_grouped_df_last_10games <- na.omit(NYK_grouped_df_last_10games) #UTANGE TO TARGET CITY
+prediction_NYK_grouped_df_last_10games <- na.omit(NYK_grouped_df_last_10games) 
 prediction_NYK_grouped_df_last_10games <- select(prediction_NYK_grouped_df_last_10games, -PTS)
-prediction_NYK_grouped_df_last_10games <- mutate(prediction_NYK_grouped_df_last_10games, ABBREVIATION = "WAS") #UTANGE TO OPPOSING TEAM
-prediction_NYK_grouped_df_last_10games <- mutate(prediction_NYK_grouped_df_last_10games, WHERE_PLAYED = "HOME_GAME") #CHANGE TO HOME OR AWAY
+prediction_NYK_grouped_df_last_10games <- mutate(prediction_NYK_grouped_df_last_10games, ABBREVIATION = "WAS") 
+prediction_NYK_grouped_df_last_10games <- mutate(prediction_NYK_grouped_df_last_10games, WHERE_PLAYED = "HOME_GAME") 
 
 prediction_df <- data.frame(TEAM_ID = numeric(),
                             PLAYER_ID = numeric(),
@@ -711,6 +711,7 @@ result <- cbind(forecast_test, final_output)
 result$mse <- (result$final_output - result$PTS)^2
 result<- na.omit(result)
 
+#creates a result per player id
 write.csv(result, file = "result_203078.csv", row.names = FALSE)
 
 
