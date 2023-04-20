@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+
+<head>
+  <title>NBA Matchups</title>
+  <meta charset="utf-8">
+
+  <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+  <script type="text/javascript" src="../lib/d3-dsv.min.js"></script>
+  <script type="text/javascript" src="../lib/d3-tip.min.js"></script>
+
+  <style>
+    .topnav {
+        background-color: #221f20;
+        overflow: hidden;
+
+    }
+    .topnav a{
+        float: left;
+        color: #f2f2f2;
+        text-align: center;
+        padding: 14px 16px;
+        text-decoration: none;
+        font-size: 17px;
+        font-family: sans-serif;
+    }
+
+    .topnav a:hover{
+        background-color: #ddd;
+        color: black;
+    }
+
+    .topnav a.active{
+        background-color: red;
+        color: white;
+    }
+
+    h1 {
+        text-align: center;
+    }
+
+    .container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .container2{
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: left;
+    }
+
+    .column {
+        flex-basis: 48%;
+        padding: 10px;
+        background-color: #f2f2f2;
+    }
+
+    .row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        height: 25px;
+    }
+
+    /* TESTING */
+    #my-div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .row2 {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .column2 {
+        flex: 1;
+        padding: 20px;
+        background-color: #f0f0f0;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+
+    .center2 {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .bg {
+        background-color: #f2f2f2;
+    }
+
+  </style>
+</head>
+
+<body onload="document.querySelector('.topnav a.active').click();">
+    <div>
+        <h1 style="font-family: sans-serif;">NBA Game Matchup Prediction Tool</h1>
+        <div class="topnav">
+            <a class="active" href="#stats" onclick="loadContent('stats')">Stats</a>
+            <a href="#matchups" onclick="loadContent('matchups')">Matchup Predictions</a>
+            <a href="#about" onclick="loadContent('about')">About</a>
+        </div>
+    </div>
+    <script>
+        width = 900;
+        height = 560;
+        margin = {top:20, right: 30, bottom: 30, left: 40};
+
+        // Paths
+        var path_to_stats = "data/merged_df.csv";
+        var path_to_games = ["data/gameid_22201163.csv", "data/gameid_22201164.csv", 
+                             "data/gameid_22201165.csv", "data/gameid_22201166.csv", 
+                             "data/gameid_22201167.csv", "data/gameid_22201168.csv", "data/Filled_Attributes.csv"];
+        
+        // Body
+        var body = d3.select("body");
+
+        // Update selected section
+        var links = d3.selectAll(".topnav a");
+        function update_active(){
+            links.classed("active", false);
+            d3.select(this).classed("active", true);
+        }
+        links.on("click", update_active);
+
+        function about(){
+            body.select("#page").remove();
+            var page = body.append("div").attr("id", "page");
+            page.append("h3").attr("id", "title").text("Group #52:").style("text-align", "center");
+            var team_members = ["Dan Goldin (dgoldin3)", "Diego Escalera (dayala9)", "Ethan Garbow (egarbow3)", 
+                                "Michael Lamontagne (mlamontagne6)", "Sebastián de la Hoz (sluna7)", "Yotan Demi-ejegi (ydemiejegi3)"];
+            var members = page.append("div").attr("id", "team-members");
+            members.selectAll("team_members").data(team_members).enter().append("p").text((d) => d);
+
+            page.append("h3").text("Introduction")
+            page.append("p").text("According to ESPN, NBA Teams and the sports betting industry spend well in excess of $3.1 billion in research surrounding player stats and predictions in order to gain a competitive advantage in the respective fields. This topic is of high interest and our objective is to provide a device for fellow NBA fans to do a deep dive into the game and be able to look at previously nuanced concepts such as hot streaks, team chemistry, and social sentiment as well as provide specific player-to-player matchup comparisons. ");
+        }
+
+        function stats(){
+            body.select("#page").remove();
+            var page = body.append("div").attr("id", "page");
+            var graphs = page.append("div").attr("class", "container2");
+            var svg = graphs.append("svg").attr("id", "svg-stats").attr("width", width).attr("height", height)//.attr("class", "column");
+            var container = page.append("div").attr("class", "container");
+            var player_select = container.append("div").attr("class", "column").attr("id", "player-select");
+            var stat_select = container.append("div").attr("class", "column").attr("id", "stat-select");
+            var display_players = graphs.append("div").attr("id", "display-players");
+            var title_players = display_players.append("h3").text("Selected players: 1 (max: 10)").attr("id", "limit-title");
+            var display_players_names = display_players.append("div").attr("id", "display-players-names");
+
+            svg.append("text").attr("id", "title-stats").attr("x", (width/2)).attr("y", margin.top+16).text("Player Stats")
+                              .style("font-weight", "bold").style("font", "20px").style("text-anchor", "middle");
+            var g1 = svg.append("g").attr("id", "plot-stats");
+            var lines = g1.append("g").attr("id", "lines-stats");
+
+            // Scales
+            var xScale = d3.scaleTime().rangeRound([margin.left, width - margin.right]);
+            var yScale = d3.scaleLinear().range([height - margin.bottom, margin.top]);
+
+            var xAxis = g => g
+                        .attr("transform", `translate(0, ${height - margin.bottom})`)
+                        .call(
+                            d3.axisBottom(xScale)
+                            .ticks(d3.timeMonth.every(1))
+                            .tickFormat(d3.timeFormat("%b %y"))
+                        );
+            var yAxis = g => g
+                        .attr("transform", `translate(${margin.left}, 0)`)
+                        .call(d3.axisLeft(yScale));
+
+            // Colors
+            var colorArr = [d3.schemeCategory10, d3.schemeAccent];
+            var colorScheme = d3.scaleOrdinal(colorArr[0]);
+
+            // Dropdown Menu
+            player_select.append("text").text("Select a player:      ");
+            var player_dropdown = player_select.append("select").attr("id", "player-dropdown");
+
+            // Options Menu
+            stat_select.append("label").text("Select a statistic: ");
+            var radioGroup = stat_select.append("div").attr("class", "radio-group");
+            var available_stats = ['Points', 'Rebounds', 'Steals', 'Assists', 'Turnovers', 'Blocks', 'Field Goals Attempted', 'Field Goals Percentage', '3-Point Field Goal Attempted', 'Free Throws Attempted'];
+            var radioButtons = radioGroup.selectAll("div").data(available_stats).enter().append("div")
+                                         .attr("class", "radio-button");
+
+            d3.dsv(",", path_to_stats, function(d){
+                return{
+                    game_id: +d.GAME_ID,
+                    game_date: new Date(d.GAME_DATE),
+                    team_id: +d.TEAM_ID,
+                    team_abb: d.TEAM_ABBREVIATION,
+                    team_city: d.TEAM_CITY,
+                    player_id: +d.PLAYER_ID,
+                    player_name: d.PLAYER_NAME,
+                    player_pts: +d.PTS,
+                    player_reb: +d.REB,
+                    player_stl: +d.STL,
+                    player_ast: +d.AST,
+                    player_to: +d.TO,
+                    player_blk: +d.BLK,
+                    player_fga: +d.FGA,
+                    player_fgpct: +d.FG_PCT,
+                    player_fg3a: +d.FG3A,
+                    player_fta: +d.FTA
+                }
+            }).then(function (data){
+                var compare_dates = (a, b) => a.game_date - b.game_date;
+                var filtered_data = data.sort(compare_dates);
+                filtered_data = filtered_data.filter(d => {
+                    let last_season = new Date(2022, 9, 1);
+                    return d.game_date >= last_season;
+                });
+
+                var unique_players = [...new Set(filtered_data.map(item => item.player_name))];
+                var len_unique_players = unique_players.length;
+                var unique_players_sorted = unique_players.sort();
+                var selected_players_names = ["A.J. Lawson"];
+                var players_data = []
+                var selected_stat = 'Points';
+                xScale.domain(d3.extent(filtered_data, (d)=>d.game_date));
+
+                // Dropdown Options
+                player_dropdown.selectAll("dropdown_options").data(unique_players_sorted).enter().append("option")
+                               .attr("value", (d)=>d).append("text").text((d)=>d);
+
+                var selected_player = d3.select("#player-dropdown").property("value");
+                var player_data = filtered_data.filter(function (d){ return d.player_name === selected_player});
+                players_data.push(player_data);
+                drawLines(players_data, selected_stat);
+
+                // Radio Options
+                radioButtons.append("input").attr("type", "radio").attr("id", (d)=> `radio-${d}`)
+                                        .attr("name", "option").attr("value", (d)=>d)
+                                        .property("checked", (d)=> d === 'Points')
+                                        .on("change", function(d){
+                                            selected_stat = d;
+                                            drawLines(players_data, selected_stat);
+                                        });
+                radioButtons.append("label").text((d)=>d).attr("for", (d)=>`radio-${d}`);   
+                
+                var x_axis = g1.append("g").attr("id", "x-axis-stats").call(xAxis);
+                x_axis.append("text").text("Month").attr("x", width/2).attr("y", 0 + margin.bottom).attr("fill", "black");
+
+                // Add more players
+                d3.select("#player-dropdown")
+                  .on("change", function(d){
+                    selected_player = d3.select(this).property("value");
+                    var selected_player_data = filtered_data.filter(function (d) { return d.player_name === selected_player})
+                    if (players_data.length >= 10) { return }
+                    players_data.push(selected_player_data);
+                    drawLines(players_data, selected_stat);
+                  })
+
+                function remove_selected_player(parent){
+                    let remove_player = d3.select(parent).select("p").text();
+                    let index_of_player = 0;
+
+                    for (let i = 0; i < players_data.length; i++){
+                        let tmp_info = players_data[i][0];
+                        if (tmp_info.player_name === remove_player){
+                            index_of_player = i;
+                            break;
+                        }
+                    }
+
+                    players_data.splice(index_of_player, 1);
+                    parent.remove();
+                    drawLines(players_data, selected_stat);
+                }
+
+                function updateYScale(stat){
+                    limit = 0;
+                    switch(stat){
+                        case 'Points':
+                            limit = d3.max(data, (d)=>d.player_pts);
+                            break;
+                        case 'Rebounds':
+                            limit = d3.max(data, (d)=>d.player_reb);
+                            break;
+                        case 'Steals':
+                            limit = d3.max(data, (d)=>d.player_stl);
+                            break;
+                        case 'Assists':
+                            limit = d3.max(data, (d)=>d.player_ast);
+                            break;
+                        case 'Turnovers':
+                            limit = d3.max(data, (d)=>d.player_to);
+                            break;
+                        case 'Blocks':
+                            limit = d3.max(data, (d)=>d.player_blk);
+                            break;
+                        case 'Field Goals Attempted':
+                            limit = d3.max(data, (d)=>d.player_fga);
+                            break;
+                        case 'Field Goals Percentage':
+                            limit = d3.max(data, (d)=>d.player_fgpct);
+                            break;
+                        case '3-Point Field Goal Attempted':
+                            limit = d3.max(data, (d)=>d.player_fg3a);
+                            break;
+                        case 'Free Throws Attempted':
+                            limit = d3.max(data, (d)=>d.player_fta);
+                            break;
+                    }
+                    yScale.domain([0, limit])
+                }
+
+                function drawLines(players, stat){
+                    body.select("#lines-stats").remove();
+                    body.select("#circles-players").remove();
+                    body.select("#y-axis-stats").remove();
+                    body.select("#circles-players").remove();
+                    body.select("#display-players-names").remove();
+                    body.select("#limit-title").remove();
+                    updateYScale(stat); // Update Y scale to the selected stat
+                    var lines = g1.append("g").attr("id", "lines-stats");
+                    var circles = g1.append("g").attr("id", "circles-players");
+                    var y_axis = g1.append("g").attr("id", "y-axis-stats").call(yAxis);
+                    var title_players = display_players.append("h3").attr("id", "limit-title").text(function(){
+                        return "Selected players: " + players.length + " (max: 10)"
+                    });
+
+                    var display_players_names = display_players.append("div").attr("id", "display-players-names");
+                    y_axis.append("text").text(function(d){ return stat })
+                          .attr("x", -height/2).attr("y", -30).style("text-anchor", "middle").attr("fill", "black")
+                          .attr("transform", "rotate(-90)");
+
+                    for (let i = 0; i < players.length; i++){
+                        let player_data_row = display_players_names.append("div").attr("class", "row").attr("id", `row-${i}`);
+                        player_data_row.append("p").text(players[i][0].player_name).attr("id", `player-${i}`)
+                                            .style("color", colorScheme(i)).style("margin-right", "5px")
+                                            .style("font", "15px");
+                        player_data_row.append("button").style("margin-left", "5px").attr("id", `button-${i}`).text("X")
+                                        .style("font-size", "6px")
+                                        .on("click", function(){
+                                            let parent = d3.event.target.parentNode;
+                                            remove_selected_player(parent);
+                                        });
+                        lines.append("path").datum(players[i]).attr("fill", "none").attr("stroke", colorScheme(i))
+                             .attr("stroke-width", 1.5)
+                             .attr("d", d3.line()
+                                .x(function(d) { return xScale(d.game_date)})
+                                .y(function(d) { 
+                                    switch(stat){
+                                        case 'Points':
+                                            return yScale(d.player_pts)
+                                        case 'Rebounds':
+                                            return yScale(d.player_reb)
+                                        case 'Steals':
+                                            return yScale(d.player_stl)
+                                        case 'Assists':
+                                            return yScale(d.player_ast)
+                                        case 'Turnovers':
+                                            return yScale(d.player_to)
+                                        case 'Blocks':
+                                            return yScale(d.player_blk)
+                                        case 'Field Goals Attempted':
+                                            return yScale(d.player_fga)
+                                        case 'Field Goals Percentage':
+                                            return yScale(d.player_fgpct)
+                                        case '3-Point Field Goal Attempted':
+                                            return yScale(d.player_fg3a)
+                                        case 'Free Throws Attempted':
+                                            return yScale(d.player_fta)
+                                        default:
+                                            console.log('ERROR');
+                                }})                           
+                             );
+                        circles.selectAll(`circle-${i}`).data(players[i]).enter().append("circle")
+                                .style("fill", colorScheme(i)).attr("r", 4)
+                                .attr("cx", function(d){return xScale(d.game_date)})
+                                .attr("cy", function(d){
+                                    switch(stat){
+                                        case 'Points':
+                                            return yScale(d.player_pts)
+                                        case 'Rebounds':
+                                            return yScale(d.player_reb)
+                                        case 'Steals':
+                                            return yScale(d.player_stl)
+                                        case 'Assists':
+                                            return yScale(d.player_ast)
+                                        case 'Turnovers':
+                                            return yScale(d.player_to)
+                                        case 'Blocks':
+                                            return yScale(d.player_blk)
+                                        case 'Field Goals Attempted':
+                                            return yScale(d.player_fga)
+                                        case 'Field Goals Percentage':
+                                            return yScale(d.player_fgpct)
+                                        case '3-Point Field Goal Attempted':
+                                            return yScale(d.player_fg3a)
+                                        case 'Free Throws Attempted':
+                                            return yScale(d.player_fta)                                            
+                                        default:
+                                            console.log('ERROR CIRCLES');
+                                    }
+                                })
+                    }
+                }       
+
+            }).catch(function (error){
+                console.log(error);
+            })
+        }
+
+        function matchups(){
+            body.select("#page").remove();
+
+            var page = body.append("div").attr("id", "page");
+            var topdiv = page.append("div").attr("id", "my-div");
+            var firstrow = topdiv.append("div").attr("class", "row2");
+            var placeholder = topdiv.append("div").attr("class", "row2").append("p")
+            var colcenter = firstrow.append("div").attr("class", "column2 center2");
+            var selected_game_index = 0;
+
+            colcenter.append("text").text("Select an April 2nd matchup:       ");
+            var game_dropdown = colcenter.append("select").attr("id", "game-dropdown");
+            var game_dropdown_options = []
+
+            Promise.all(
+                path_to_games.map(function(d, i){
+                    return d3.csv(d)
+                })
+            ).then(function(data){
+
+                // tooltip
+                let tooltip = page.append("svg").attr("id", "testing");
+                var tip = d3.tip()
+                    .attr("class", "d3-tip")
+                    .html(function(a, b){
+                        return "<text style=\"font-size:20px\">" + a + "<br>" + b + "</text>";
+                    })
+                    .attr("id", "tooltip")
+                    .style("background-color", "gray")
+
+                tooltip.call(tip)
+
+                for (let i = 0; i < data.length - 1; i++){
+                    let team1 = data[i][0].TEAM_CITY;
+                    let team2 = data[i][9].TEAM_CITY;
+                    game_dropdown_options.push(team1 + ' VS ' + team2);
+                }
+
+                var sentiment = data[data.length - 1];
+
+                game_dropdown.selectAll("dropdown_options").data(game_dropdown_options).enter().append("option")
+                             .attr("value", (d)=>d).append("text").text((d)=>d);
+
+                loadGame(data[0]);
+
+                // Load a different game
+                d3.select("#game-dropdown").on("change", function(d){
+                    selected_game_index = d3.select(this).property("selectedIndex")
+                    loadGame(data[selected_game_index]);
+                })
+
+                function loadGame(matchup){
+                    body.select("#secondrow").remove();
+
+                    var secondrow = topdiv.append("div").attr("class", "row2").attr("id", "secondrow");                    
+                    let teamA = matchup.slice(0, matchup.length / 2).sort(function(a,b){return b.PTS_pred - a.PTS_pred});
+                    let teamB = matchup.slice(matchup.length / 2, matchup.length).sort(function(a,b){return b.PTS_pred - a.PTS_pred});
+                    let cityA = teamA[0].TEAM_CITY;
+                    let cityB = teamB[0].TEAM_CITY;
+
+                    let pointsA = (teamA.reduce((ac, cur) => { return ac + Math.round(+cur.PTS_pred);}, 0));
+                    let pointsB = (teamB.reduce((ac, cur) => { return ac + Math.round(+cur.PTS_pred);}, 0));
+
+                    let emptyCol = secondrow.append("div").attr("class", "cols");
+                    let team1col = secondrow.append("div").attr("class", "cols");
+                    let scorescol = secondrow.append("div").attr("class", "cols");
+                    let team2col = secondrow.append("div").attr("class", "cols");
+                    let emptyCol2 = secondrow.append("div").attr("class", "cols");
+
+                    team1col.append("img").attr("src", "team_logos/" + cityA+".png").attr("width", 200).attr("height", 200).style("display", "block").style("margin", "auto");
+
+                    team2col.append("img").attr("src", "team_logos/" + cityB+".png").attr("width", 200).attr("height", 200).style("display", "block").style("margin", "auto");
+                    
+                    scorescol.append("p").text("Starting Five Predicted Score").style("display", "flex").style("font-weight", "bold").style("font-size", "22px");
+                    scorescol.insert("p").text(function(d){
+                        return pointsA + "  :  " + pointsB;
+                    }).style("font-weight", "bold").style("font-size", "70px").style("text-align", "center");
+
+                    let team1divs = team1col.append("div").attr("class", "row2");
+                    let team1names = team1divs.append("div").attr("class", "cols");
+                    let team1scores = team1divs.append("div").attr("class", "cols");
+                    let team1startpos = team1divs.append("div").attr("class", "cols");
+
+                    team1names.append("h4").text("Player").style("text-align", "center");
+                    team1names.selectAll("players-A").data(teamA).enter().append("p")
+                              .text(function(d){return d.PLAYER_NAME}).attr("class", "bg")
+                              .on("mouseover", function(d){
+                                tip.style("left", d3.event.pageX + "px");
+                                tip.style("top", d3.event.pageY - 30 + "px")
+                                .style("display", "inline-block");
+                                let sentiment_player_name = d.PLAYER_NAME;
+                                let sentiment_player = sentiment.filter(function(d){return d.PLAYER_NAME===sentiment_player_name})
+                                let sentiment_player_score = +sentiment_player[0].Attribute;
+                                tip.show("Sentiment Score Range: [-50, 50]", "Sentiment Score for " + sentiment_player_name + ": " + sentiment_player_score.toFixed(2))
+                              })
+                              .on("mouseout", tip.hide)
+                              .style("text-align", "center");
+
+                    team1scores.append("h4").text("\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0Score\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0").style("text-align", "center");
+                    team1scores.selectAll("scores-A").data(teamA).enter().append("p").text((d)=>Math.round(+d.PTS_pred)).style("text-align", "center").attr("class", "bg");
+
+                    team1startpos.append("h4").text("Starting Position");
+                    team1startpos.selectAll("scores-A").data(teamA).enter().append("p").text(function(d){
+                        if (d.START_POSITION) {
+                            return d.START_POSITION
+                        }
+                        return "N/A"
+                    }).style("text-align", "center").attr("class", "bg");
+
+
+                    let team2divs = team2col.append("div").attr("class", "row2");
+                    let team2names = team2divs.append("div").attr("class", "cols");
+                    let team2scores = team2divs.append("div").attr("class", "cols");
+                    let team2startpos = team2divs.append("div").attr("class", "cols");
+
+                    team2names.append("h4").style("text-align", "center").text("Player");
+                    team2names.selectAll("players-A").data(teamB).enter().append("p")
+                              .text(function(d){return d.PLAYER_NAME}).attr("class", "bg")
+                              .on("mouseover", function(d){
+                                tip.style("left", d3.event.pageX + "px");
+                                tip.style("top", d3.event.pageY - 30 + "px")
+                                .style("display", "inline-block");
+                                let sentiment_player_name = d.PLAYER_NAME;
+                                let sentiment_player = sentiment.filter(function(d){return d.PLAYER_NAME===sentiment_player_name})
+                                let sentiment_player_score = +sentiment_player[0].Attribute;
+                                tip.show("Sentiment Score Range: [-50, 50]", "Sentiment Score for " + sentiment_player_name + ": " + sentiment_player_score.toFixed(2))
+                              })
+                              .on("mouseout", tip.hide)
+                              .style("text-align", "center");
+
+                    team2scores.append("h4").text("\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0Score\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0").style("text-align", "center");
+                    team2scores.selectAll("scores-B").data(teamB).enter().append("p").text((d)=>Math.round(+d.PTS_pred)).style("text-align", "center").attr("class", "bg");
+
+                    team2startpos.append("h4").text("Starting Position");
+                    team2startpos.selectAll("scores-B").data(teamB).enter().append("p").text(function(d){
+                        if (d.START_POSITION){
+                            return d.START_POSITION
+                        }
+                        return "N/A"
+                    }).style("text-align", "center").attr("class", "bg");
+
+                    if (pointsA > pointsB){
+                        team1col.append("h2").text("Predicted Winner!").style("text-align", "center");
+                    }
+                    else if (pointsB > pointsA){
+                        team2col.append("h2").text("Predicted Winner!").style("text-align", "center");
+                    }
+                    else {
+                        team1col.append("h2").text("Predicted Tie!").style("text-align", "center");
+                        team2col.append("h2").text("Predicted Tie!").style("text-align", "center");
+                    }
+                }
+
+            }).catch(function(error){
+                console.log(error);
+            });
+        }
+
+        function loadContent(page){
+            var content = document.getElementById('content');
+            switch (page){
+                case 'stats':
+                    stats();
+                    break;
+                case 'matchups':
+                    matchups();
+                    break;
+                case 'about':
+                    about();
+                    break;
+                default:
+                    console.log('Error');
+            }
+        }
+    </script>
+</body>
